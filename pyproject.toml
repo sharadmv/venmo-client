@@ -7,6 +7,8 @@ license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.8"
+rich = "^10.1.0"
+requests = "^2.25.1"
 
 [tool.poetry.dev-dependencies]
 ipython = "^7.22.0"

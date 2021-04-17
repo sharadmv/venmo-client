@@ -1,5 +1,6 @@
 from typing import Union
 
+from rich import prompt
 import pathlib
 import requests
 import uuid
@@ -18,6 +19,7 @@ class VenmoClient:
     self.base_url = base_url
     self.session = requests.Session()
     self.auth_config = auth.Config(pathlib.Path(config_dir))
+    self.device_id = str(uuid.uuid4())
 
   @property
   def user_id(self) -> str:
@@ -46,7 +48,7 @@ class VenmoClient:
         password=password
     )
     headers = {
-        'device-id': str(uuid.uuid4()),#'88884260-05O3-8U81-58I1-2WA76F357GR9',
+        'device-id': self.device_id,
         'Content-Type': 'application/json',
     }
     url = f'{self.base_url}/oauth/access_token'
@@ -57,7 +59,42 @@ class VenmoClient:
     res = self.session.send(req)
     if res.status_code == 201:
       return res.json()
+    elif res.status_code == 401:
+      venmo_otp_secret = res.headers['venmo-otp-secret']
+      return self.login_with_text(username, password, venmo_otp_secret)
     raise NotImplementedError(res.json())
+
+  def login_with_text(self, username, password, secret):
+    headers = {
+      'device-id': self.device_id,
+      'venmo-otp-secret': secret,
+      'Content-Type': 'application/json'
+    }
+    payload = dict(via='sms')
+    url = f'{self.base_url}/account/two-factor/token'
+    req = requests.Request(
+        method='POST',
+        url=url,
+        headers=headers, json=payload).prepare()
+    res = self.session.send(req)
+    if res.status_code != 200:
+      raise ValueError('Failed to send text')
+    code = prompt.Prompt.ask('Enter code')
+
+    headers = {
+      'device-id': self.device_id,
+      'venmo-otp-secret': secret,
+      'Venmo-Otp': code
+    }
+    url = f'{self.base_url}/oauth/access_token?client_id=1'
+    req = requests.Request(
+        method='POST',
+        url=url,
+        headers=headers, json=payload).prepare()
+    res = self.session.send(req)
+    if res.status_code != 201:
+      raise ValueError(res.status_code)
+    return res.json()
 
   def transactions(self, before_id=None, limit: int = 50, **kwargs):
     if not self.access_token:
@@ -97,7 +134,23 @@ class VenmoClient:
       return
     raise ValueError(f'Unable to logout: {res.text}')
 
-  def request(self, note, user_id, amount):
+  def get_user_id(self, username):
+    headers = {
+        'Authorization': f'Bearer {self.access_token}'
+    }
+    url = f'{self.base_url}/users/{username}'
+    req = requests.Request(
+        method='GET',
+        url=url,
+        headers=headers).prepare()
+    res = self.session.send(req)
+    if res.status_code == 200:
+      return res.json()['data']['id']
+    print(res.json())
+    raise ValueError(res.status_code)
+
+  def request(self, note, username, amount):
+    user_id = self.get_user_id(username)
     payload = dict(
         note=note,
         metadata=dict(quasi_cash_disclaimer_viewed=False),
@@ -111,23 +164,8 @@ class VenmoClient:
         method='POST',
         url=url,
         headers=headers, json=payload).prepare()
-    self.session.send(req)
-    headers = {
-        'Authorization': f'Bearer {self.access_token}'
-    }
-    url = f'{self.base_url}/payments'
-    req = requests.Request(
-        method='POST',
-        url=url,
-        headers=headers, json=payload).prepare()
-    self.session.send(req)
-    headers = {
-        'Authorization': f'Bearer {self.access_token}'
-    }
-    url = f'{self.base_url}/payments'
-    req = requests.Request(
-        method='POST',
-        url=url,
-        headers=headers, json=payload).prepare()
-    self.session.send(req)
+    res = self.session.send(req)
+    if res.status_code != 200:
+      print(res.json())
+      raise ValueError(res.status_code)
     return
