@@ -1,4 +1,6 @@
-from typing import Union
+import datetime
+
+from typing import Optional, Union
 
 from rich import prompt
 import pathlib
@@ -8,7 +10,9 @@ import urllib.parse as urlparse
 
 from venmo_client import auth
 from venmo_client import model
+from venmo_client import util
 
+TRANSACTION_HISTORY_URL = 'https://venmo.com/transaction-history/statement?startDate={start_date}&endDate={end_date}&profileId={user_id}&accountType=personal'
 
 class VenmoClient:
 
@@ -134,6 +138,25 @@ class VenmoClient:
       return
     raise ValueError(f'Unable to logout: {res.text}')
 
+  def me(self):
+    headers = {
+        'Authorization': f'Bearer {self.access_token}'
+    }
+    url = f'{self.base_url}/me'
+    req = requests.Request(
+        method='GET',
+        url=url,
+        headers=headers).prepare()
+    res = self.session.send(req)
+    if res.status_code == 200:
+      result = res.json()['data']
+      user = model.User(**result['user'])
+      return dict(result, user=user)
+
+  def balance(self):
+    me = self.me()
+    return float(me['balance'])
+
   def get_user_id(self, username):
     headers = {
         'Authorization': f'Bearer {self.access_token}'
@@ -148,6 +171,59 @@ class VenmoClient:
       return res.json()['data']['id']
     print(res.json())
     raise ValueError(res.status_code)
+
+  def get_transaction(self, transaction_id):
+    headers = {
+        'Authorization': f'Bearer {self.access_token}'
+    }
+    url = f'{self.base_url}/stories/{transaction_id}'
+    req = requests.Request(
+        method='GET',
+        url=url,
+        headers=headers).prepare()
+    res = self.session.send(req)
+    if res.status_code == 200:
+      return res.json()['data']
+    print(res.json())
+    raise ValueError(res.status_code)
+
+  def get_transaction_history(
+      self,
+      *,
+      start_date: Optional[Union[str, datetime.date]] = None,
+      end_date: Optional[Union[str, datetime.date]] = None):
+    if not start_date:
+      start_date = datetime.date.today() - datetime.timedelta(days=90)
+    if not end_date:
+      end_date = datetime.date.today()
+    start_date_str = start_date.strftime('%Y-%m-%d')
+    end_date_str = end_date.strftime('%Y-%m-%d')
+    url = f'{self.base_url}/transaction-history'
+    headers = {
+        'Authorization': f'Bearer {self.access_token}'
+    }
+    params = {
+        'start_date': start_date_str,
+        'end_date': end_date_str,
+        'profile_id': self.user_id,
+        'account_type': 'personal'
+    }
+    req = requests.Request(
+        method='GET',
+        headers=headers,
+        url=url,
+        params=params).prepare()
+    # res = self.session.send(req)
+    # if res.status_code != 200:
+      # print(res.json())
+      # raise ValueError(res.status_code)
+    # results = res.json()
+    with open('/home/sharad/Downloads/temp.json', 'r') as fp:
+      import json
+      results = json.load(fp)
+    transactions = results['data']['transactions']
+    for txn in transactions:
+      yield model.Transaction.new(**txn)
 
   def request(self, note, username, amount):
     user_id = self.get_user_id(username)

@@ -1,7 +1,7 @@
 import dataclasses
 import datetime
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclasses.dataclass(frozen=True)
@@ -25,6 +25,7 @@ class User:
   email: str
   is_payable: bool
   identity_type: str
+  is_venmo_team: bool = False
 
   @classmethod
   def new(cls, **data: Dict[str, Any]) -> 'User':
