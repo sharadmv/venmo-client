@@ -196,6 +196,8 @@ class VenmoClient:
       start_date = datetime.date.today() - datetime.timedelta(days=90)
     if not end_date:
       end_date = datetime.date.today()
+    start_date = util.canonicalize_date(start_date)
+    end_date = util.canonicalize_date(end_date)
     start_date_str = start_date.strftime('%Y-%m-%d')
     end_date_str = end_date.strftime('%Y-%m-%d')
     url = f'{self.base_url}/transaction-history'
@@ -213,17 +215,18 @@ class VenmoClient:
         headers=headers,
         url=url,
         params=params).prepare()
-    # res = self.session.send(req)
-    # if res.status_code != 200:
-      # print(res.json())
-      # raise ValueError(res.status_code)
-    # results = res.json()
-    with open('/home/sharad/Downloads/temp.json', 'r') as fp:
-      import json
-      results = json.load(fp)
+    res = self.session.send(req)
+    if res.status_code != 200:
+      print(res.json())
+      raise ValueError(res.status_code)
+    results = res.json()
+    start_balance = results['data']['start_balance']
+    end_balance = results['data']['end_balance']
     transactions = results['data']['transactions']
+    parsed_transactions = []
     for txn in transactions:
-      yield model.Transaction.new(**txn)
+      parsed_transactions.append(model.Transaction.new(**txn))
+    return parsed_transactions, (start_balance, end_balance)
 
   def request(self, note, username, amount):
     user_id = self.get_user_id(username)

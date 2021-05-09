@@ -1,13 +1,13 @@
 [tool.poetry]
 name = "venmo-client"
-version = "0.1.0"
+version = "0.4.0"
 description = ""
 authors = ["Sharad Vikram <sharad.vikram@gmail.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-rich = "^10.1.0"
+rich = "*"
 requests = "^2.25.1"
 
 [tool.poetry.dev-dependencies]
