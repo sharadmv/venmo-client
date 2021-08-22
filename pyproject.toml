@@ -1,17 +1,21 @@
 [tool.poetry]
 name = "venmo-client"
-version = "0.4.0"
+version = "0.5.0"
 description = ""
 authors = ["Sharad Vikram <sharad.vikram@gmail.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-rich = "*"
-requests = "^2.25.1"
+click = "^8.0.1"
+rich = "^10.7.0"
+requests = "*"
 
 [tool.poetry.dev-dependencies]
 ipython = "^7.22.0"
+
+[tool.poetry.scripts]
+venmo = 'venmo_client.cli:cli'
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

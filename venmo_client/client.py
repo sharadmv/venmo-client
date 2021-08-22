@@ -33,6 +33,9 @@ class VenmoClient:
   def access_token(self) -> str:
     return self.auth_config.get_access_token()
 
+  def is_authenticated(self):
+    return self.auth_config.is_authenticated()
+
   def authenticate(self, *,
       username: str = None,
       password: str = None):
@@ -66,6 +69,10 @@ class VenmoClient:
     elif res.status_code == 401:
       venmo_otp_secret = res.headers['venmo-otp-secret']
       return self.login_with_text(username, password, venmo_otp_secret)
+    else:
+      message = res.json()
+      if 'error' in message:
+        raise ValueError(message['error']['message'])
     raise NotImplementedError(res.json())
 
   def login_with_text(self, username, password, secret):
