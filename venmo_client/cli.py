@@ -60,6 +60,15 @@ def login(ctx: click.Context, *, username: Optional[str], password:
 
 
 @cli.command()
+@click.pass_context
+def logout(ctx: click.Context):
+  client = make_client(ctx, check_authentication=False)
+  with console.status('Logging out...'):
+    client.logout()
+  console.print('[bold green]Logged out successfully!')
+
+
+@cli.command()
 @click.option('--username',
     type=str,
     default=None,

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "venmo-client"
-version = "0.5.0"
+version = "0.6.0"
 description = ""
 authors = ["Sharad Vikram <sharad.vikram@gmail.com>"]
 license = "MIT"
