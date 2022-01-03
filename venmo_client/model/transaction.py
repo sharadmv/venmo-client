@@ -120,6 +120,7 @@ class Payment:
   date_created: datetime.datetime
   date_reminded: Optional[datetime.datetime]
   external_wallet_payment_info: Optional[str]
+  tenant_information: Optional[str] = None
 
   @classmethod
   def new(cls, **data):
@@ -129,7 +130,8 @@ class Payment:
         date_authorized=datetime.datetime.fromisoformat(
           data['date_authorized']) if data['date_authorized'] else None,
         date_created=datetime.datetime.fromisoformat(data['date_created']),
-        date_completed=datetime.datetime.fromisoformat(data['date_completed']),
+        date_completed=datetime.datetime.fromisoformat(
+          data['date_completed']) if data['date_completed'] else None,
         date_reminded=datetime.datetime.fromisoformat(
           data['date_reminded']) if data['date_reminded'] else None,
         )
@@ -351,7 +353,7 @@ class Transaction:
 
   @classmethod
   def new(cls, *, type, id, datetime_created, note, amount,
-      funding_source = None,**kwargs) -> 'Transaction':
+      funding_source = None, **kwargs) -> 'Transaction':
     datetime_created = datetime.datetime.fromisoformat(datetime_created)
     transaction_kwargs = {}
     if type not in TRANSACTION_MAPPINGS:
@@ -385,3 +387,61 @@ class Transaction:
   def __hash__(self):
     return hash(self.id)
 
+
+NotificationType = Literal[
+    'payment',
+    'venmo_card_shipped',
+]
+
+NOTIFICATION_MAPPINGS = {
+    'payment': Payment,
+    'venmo_card_shipped': None,
+}
+
+class Notification:
+
+  def __init__(self,
+      type: TransactionType,
+      id: str,
+      message: str,
+      *, 
+      acknowledged: Optional[bool] = None,
+      created_at: datetime.datetime = None,
+      date_updated: datetime.datetime = None,
+      date_created: datetime.datetime = None,
+      payment: Optional[Payment] = None):
+    self.type = type
+    self.id = id
+    self.date_updated = date_updated
+    self.date_created = date_created
+    self.message = message
+    self.payment = payment
+
+  @classmethod
+  def new(cls, *, type, id, message, date_updated=None, date_created=None, created_at=None,
+      **kwargs) -> 'Notification':
+    date_created = (datetime.datetime.fromisoformat(date_created) if
+      date_created else None)
+    date_updated = (datetime.datetime.fromisoformat(date_updated) if
+        date_updated else None)
+    created_at = (datetime.datetime.fromisoformat(created_at) if
+        created_at else None)
+    notification_kwargs = {}
+    if type not in NOTIFICATION_MAPPINGS:
+      raise NotImplementedError(f'Unknown notification type: {type}, {kwargs[type]}')
+    notification_handler = NOTIFICATION_MAPPINGS[type]
+    if notification_handler:
+      notification_kwargs[type] = notification_handler.new(**kwargs[type])
+    return cls(type, id, message, date_updated=date_updated,
+        date_created=date_created, **notification_kwargs)
+
+  def __repr__(self):
+    return (f'Notification(type={self.type}, '
+            f'id={self.id}, date_created={self.date_created},'
+            f'message={self.message})')
+
+  def __eq__(self, other):
+    return self.id == other.id
+
+  def __hash__(self):
+    return hash(self.id)

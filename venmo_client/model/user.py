@@ -12,7 +12,6 @@ class User:
   is_group: bool
   is_active: bool
   trust_request: Optional[bool]
-  phone: Optional[str]
   profile_picture_url: str
   is_blocked: bool
   id: str
@@ -22,9 +21,10 @@ class User:
   display_name: str
   first_name: str
   friend_status: str
-  email: str
   is_payable: bool
   identity_type: str
+  phone: Optional[str] = None
+  email: Optional[str] = None
   is_venmo_team: bool = False
 
   @classmethod

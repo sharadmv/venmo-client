@@ -1,5 +1,7 @@
 import sys
 
+from typing import Any, Dict
+
 from rich import console as cs
 
 console = cs.Console()
@@ -16,3 +18,8 @@ def status(*args, **kwargs):
 def error(message: str):
   console.print(f'[bold red]{message}')
   sys.exit(1)
+
+def json(data: Dict[str, Any]):
+  return console.print(data)
+
+pager = console.pager

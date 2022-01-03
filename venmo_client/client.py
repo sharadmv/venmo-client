@@ -2,9 +2,9 @@ import datetime
 
 from typing import Optional, Union
 
-from rich import prompt
 import pathlib
 import requests
+from rich import prompt
 import uuid
 import urllib.parse as urlparse
 
@@ -18,7 +18,7 @@ class VenmoClient:
 
   def __init__(self,
       config_dir: Union[str, pathlib.Path],
-      base_url: str = 'https://api.venmo.com/v1'
+      base_url: str = 'https://api.venmo.com/v1',
       ):
     self.base_url = base_url
     self.session = requests.Session()
@@ -36,6 +36,15 @@ class VenmoClient:
   def is_authenticated(self):
     return self.auth_config.is_authenticated()
 
+  def _make_request(self, url, method, *, headers={}, payload={}, params={}) -> requests.Response:
+    req = requests.Request(
+        method=method,
+        url=url,
+        headers=headers,
+        params=params,
+        json=payload).prepare()
+    return self.session.send(req)
+
   def authenticate(self, *,
       username: str = None,
       password: str = None):
@@ -52,18 +61,14 @@ class VenmoClient:
     payload = dict(
         phone_email_or_username=username,
         client_id='1',
-        password=password
+        password=password,
     )
     headers = {
         'device-id': self.device_id,
         'Content-Type': 'application/json',
     }
     url = f'{self.base_url}/oauth/access_token'
-    req = requests.Request(
-        method='POST',
-        url=url,
-        headers=headers, json=payload).prepare()
-    res = self.session.send(req)
+    res = self._make_request(url, 'POST', headers=headers, payload=payload)
     if res.status_code == 201:
       return res.json()
     elif res.status_code == 401:
@@ -83,11 +88,7 @@ class VenmoClient:
     }
     payload = dict(via='sms')
     url = f'{self.base_url}/account/two-factor/token'
-    req = requests.Request(
-        method='POST',
-        url=url,
-        headers=headers, json=payload).prepare()
-    res = self.session.send(req)
+    res = self._make_request(url, 'POST', headers=headers, payload=payload)
     if res.status_code != 200:
       raise ValueError('Failed to send text')
     code = prompt.Prompt.ask('Enter code')
@@ -98,11 +99,7 @@ class VenmoClient:
       'Venmo-Otp': code
     }
     url = f'{self.base_url}/oauth/access_token?client_id=1'
-    req = requests.Request(
-        method='POST',
-        url=url,
-        headers=headers, json=payload).prepare()
-    res = self.session.send(req)
+    res = self._make_request(url, 'POST', headers=headers, payload=payload)
     if res.status_code != 201:
       raise ValueError(res.status_code)
     return res.json()
@@ -119,10 +116,7 @@ class VenmoClient:
         'limit': limit,
         **kwargs
     }
-    req = requests.Request(
-        method='GET',
-        url=url, headers=headers, params=params).prepare()
-    res = self.session.send(req).json()
+    res = self._make_request(url, 'GET', headers=headers, params=params).json()
     pagination = res['pagination']
     parsed_url = urlparse.urlparse(pagination['next'])
     qs = urlparse.parse_qs(parsed_url.query)
@@ -139,7 +133,7 @@ class VenmoClient:
         method='DELETE',
         url=url,
         headers=headers).prepare()
-    res = self.session.send(req)
+    res = self._make_request(url, 'DELETE', headers=headers)
     if res.status_code == 204:
       self.auth_config.delete()
       return
@@ -150,11 +144,7 @@ class VenmoClient:
         'Authorization': f'Bearer {self.access_token}'
     }
     url = f'{self.base_url}/me'
-    req = requests.Request(
-        method='GET',
-        url=url,
-        headers=headers).prepare()
-    res = self.session.send(req)
+    res = self._make_request(url, 'GET', headers=headers)
     if res.status_code == 200:
       result = res.json()['data']
       user = model.User(**result['user'])
@@ -169,11 +159,7 @@ class VenmoClient:
         'Authorization': f'Bearer {self.access_token}'
     }
     url = f'{self.base_url}/users/{username}'
-    req = requests.Request(
-        method='GET',
-        url=url,
-        headers=headers).prepare()
-    res = self.session.send(req)
+    res = self._make_request(url, 'GET', headers=headers)
     if res.status_code == 200:
       return res.json()['data']['id']
     print(res.json())
@@ -184,11 +170,7 @@ class VenmoClient:
         'Authorization': f'Bearer {self.access_token}'
     }
     url = f'{self.base_url}/stories/{transaction_id}'
-    req = requests.Request(
-        method='GET',
-        url=url,
-        headers=headers).prepare()
-    res = self.session.send(req)
+    res = self._make_request(url, 'GET', headers=headers)
     if res.status_code == 200:
       return res.json()['data']
     print(res.json())
@@ -217,12 +199,7 @@ class VenmoClient:
         'profile_id': self.user_id,
         'account_type': 'personal'
     }
-    req = requests.Request(
-        method='GET',
-        headers=headers,
-        url=url,
-        params=params).prepare()
-    res = self.session.send(req)
+    res = self._make_request(url, 'GET', headers=headers, params=params)
     if res.status_code != 200:
       print(res.json())
       raise ValueError(res.status_code)
@@ -234,7 +211,7 @@ class VenmoClient:
     for txn in transactions:
       parsed_transactions.append(model.Transaction.new(**txn))
     return parsed_transactions, (start_balance, end_balance)
-
+#
   def request(self, note, username, amount):
     user_id = self.get_user_id(username)
     payload = dict(
@@ -246,12 +223,79 @@ class VenmoClient:
         'Authorization': f'Bearer {self.access_token}'
     }
     url = f'{self.base_url}/payments'
-    req = requests.Request(
-        method='POST',
-        url=url,
-        headers=headers, json=payload).prepare()
-    res = self.session.send(req)
+    res = self._make_request(url, 'POST', headers=headers, payload=payload)
     if res.status_code != 200:
       print(res.json())
       raise ValueError(res.status_code)
     return
+
+  def payments(self, action='charge', status=(), limit=None, before=None):
+    headers = {
+        'Authorization': f'Bearer {self.access_token}'
+    }
+    url = f'{self.base_url}/payments'
+    params = {
+        'action': action,
+        'status': ','.join(status),
+        'limit': limit,
+        'before': before
+    }
+    res = self._make_request(url, 'GET', headers=headers, params=params)
+    if res.status_code != 200:
+      raise ValueError(res.status_code)
+    res = res.json()
+    data = res['data']
+    for txn in data:
+      yield model.Payment.new(**txn)
+    pagination = res['pagination']
+    if pagination:
+      parsed_url = urlparse.urlparse(pagination['next'])
+      qs = urlparse.parse_qs(parsed_url.query)
+      limit = int(qs.pop('limit')[0])
+      if limit - len(data) > 0:
+        yield from self.payments(**qs, status=status, limit=limit - len(data))
+
+  def notifications(self, limit = None):
+    headers = {
+        'Authorization': f'Bearer {self.access_token}'
+    }
+    url = f'{self.base_url}/notifications'
+    params = {
+        'limit': limit,
+        'status': 'incoming',
+    }
+    res = self._make_request(url, 'GET', headers=headers, params=params)
+    if res.status_code != 200:
+      raise ValueError(res.status_code)
+    res = res.json()
+    data = res['data']
+    for txn in data:
+      txn = model.Notification.new(**txn)
+      if txn.type == 'venmo_card_shipped':
+        continue
+      yield txn
+
+    pagination = res['pagination']
+    if 'next' in pagination:
+      parsed_url = urlparse.urlparse(pagination['next'])
+      qs = urlparse.parse_qs(parsed_url.query)
+      limit = int(qs.pop('limit')[0])
+      if limit - len(data) > 0:
+        yield from self.payments(**qs, limit=limit - len(data))
+
+  def settle(self, payment_id: str):
+    headers = {
+        'Authorization': f'Bearer {self.access_token}'
+    }
+    url = f'{self.base_url}/payments/{payment_id}'
+    payload = dict(
+        action='pay',
+        actor=self.user_id,
+        funding_source_id="1075861407137792751"
+    )
+    res = self._make_request(url, 'PUT', headers=headers, payload=payload)
+    if res.status_code != 200:
+      print(res.text)
+      raise ValueError(res.status_code)
+    res = res.json()
+    print(res)
