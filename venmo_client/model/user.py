@@ -26,6 +26,7 @@ class User:
   phone: Optional[str] = None
   email: Optional[str] = None
   is_venmo_team: bool = False
+  audience: Optional[str] = None
 
   @classmethod
   def new(cls, **data: Dict[str, Any]) -> 'User':
